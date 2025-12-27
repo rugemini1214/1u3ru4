@@ -29,13 +29,16 @@ import {
   RotateCcw,
   CheckSquare,
   RefreshCw,
-  Edit2
+  Edit2,
+  Folder, 
+  Minus,
+  Type 
 } from 'lucide-react';
 
 /**
  * 版本編號與全域設定
  */
-const APP_VERSION = "v2.1";
+const APP_VERSION = "v2.5";
 
 // 定義色系
 const COLOR_PALETTE = [
@@ -73,14 +76,20 @@ const FONTS_CSS = `
     min-height: 50vh;
     outline: none;
     line-height: 1.7;
-    font-size: 1.05rem;
+    font-size: 1.15rem; /* 預設字體加大 */
   }
   
+  /* 定義 execCommand 產生的 font size 對應大小 */
+  font[size="1"] { font-size: 0.85rem; } /* 小 */
+  font[size="3"] { font-size: 1.15rem; } /* 標準 (同預設) */
+  font[size="4"] { font-size: 1.4rem; font-weight: bold; } /* 大 */
+  font[size="5"] { font-size: 1.75rem; font-weight: bold; border-bottom: 2px solid #fdba74; } /* 特大 (加底線強調) */
+
   .editor-content blockquote {
     margin-left: 1.5rem;
     padding-left: 0.5rem;
     border-left: 3px solid #fdba74;
-    font-size: 0.9em;
+    font-size: 0.95em; 
     color: #6b7280;
   }
 
@@ -156,8 +165,11 @@ export default function App() {
   
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [isManageMode, setIsManageMode] = useState(false);
+  
+  // New Category States
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryType, setNewCategoryType] = useState('general'); // 'general' | 'form' | 'divider'
   
   const fileInputRef = useRef(null); 
 
@@ -166,8 +178,37 @@ export default function App() {
     const savedNotes = localStorage.getItem('litenote_notes');
     const savedMemo = localStorage.getItem('litenote_memo');
     
-    if (savedCategories) setCategories(JSON.parse(savedCategories));
-    else setCategories([]);
+    if (savedCategories) {
+      let parsed = JSON.parse(savedCategories);
+      
+      // v2.5 資料結構遷移：將 [表單] 前綴移除，改用 type 欄位
+      // 這樣以後改名就不會影響功能
+      const migrated = parsed.map(c => {
+        // 如果已經有 type，直接回傳
+        if (c.type) return c;
+
+        // 如果是舊的表單命名方式
+        if (c.name.includes('[表單]')) {
+          return { 
+            ...c, 
+            name: c.name.replace('[表單]', '').trim(), // 移除前綴文字
+            type: 'form' // 標記為表單類型
+          };
+        }
+        
+        // 如果是分隔線
+        if (c.name === '---') {
+          return { ...c, type: 'divider' };
+        }
+
+        // 預設
+        return { ...c, type: 'general' };
+      });
+
+      setCategories(migrated);
+    } else {
+      setCategories([]);
+    }
 
     if (savedNotes) setNotes(JSON.parse(savedNotes));
     if (savedMemo) setMemo(savedMemo);
@@ -177,9 +218,10 @@ export default function App() {
   useEffect(() => { localStorage.setItem('litenote_notes', JSON.stringify(notes)); }, [notes]);
   useEffect(() => { localStorage.setItem('litenote_memo', memo); }, [memo]);
 
+  // 新的檢查方式：直接看 type 欄位
   const isFormCategory = (catId) => {
     const cat = categories.find(c => c.id === catId);
-    return cat && cat.name.includes('[表單]');
+    return cat && cat.type === 'form';
   };
 
   // --- Handlers ---
@@ -208,7 +250,15 @@ export default function App() {
         const data = JSON.parse(event.target.result);
         if (data.categories && data.notes) {
           if (window.confirm('還原將會覆蓋現有資料，確定繼續嗎？')) {
-            setCategories(data.categories);
+            // Import 時也做一次檢查/遷移，避免舊備份蓋掉新結構
+            const migratedCategories = data.categories.map(c => {
+               if (c.type) return c;
+               if (c.name.includes('[表單]')) return { ...c, name: c.name.replace('[表單]', '').trim(), type: 'form' };
+               if (c.name === '---') return { ...c, type: 'divider' };
+               return { ...c, type: 'general' };
+            });
+            
+            setCategories(migratedCategories);
             setNotes(data.notes);
             if (data.memo) setMemo(data.memo);
             alert('資料還原成功！');
@@ -222,10 +272,23 @@ export default function App() {
   };
 
   const handleCreateCategory = () => {
-    if (!newCategoryName.trim()) return;
-    const newCat = { id: Date.now().toString(), name: newCategoryName };
+    let finalName = newCategoryName.trim();
+    if (newCategoryType === 'divider') {
+      finalName = '---';
+    } else {
+      if (!finalName) return; 
+      // 不再需要手動加 [表單] 前綴
+    }
+    
+    const newCat = { 
+      id: Date.now().toString(), 
+      name: finalName,
+      type: newCategoryType // 直接儲存類型
+    };
+    
     setCategories([...categories, newCat]);
     setNewCategoryName('');
+    setNewCategoryType('general');
     setShowNewCategoryModal(false);
   };
 
@@ -286,7 +349,7 @@ export default function App() {
 
   const renderCategories = () => {
     return (
-      <div className="flex flex-col h-full bg-gray-50">
+      <div className="flex flex-col h-full bg-gray-50 w-full overflow-hidden">
         <header className="bg-white p-5 pb-3 shadow-sm sticky top-0 z-10 shrink-0">
           <div className="flex justify-between items-center mb-2">
             <h1 className="text-4xl font-bold text-orange-600 handwriting-title pt-2">litenote</h1>
@@ -298,7 +361,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 w-full">
           <div className="bg-yellow-100 p-3 rounded-xl border border-yellow-200 shadow-sm mb-4 sticky-memo transform rotate-[0.5deg]">
             <textarea 
               value={memo}
@@ -314,7 +377,7 @@ export default function App() {
           )}
 
           {categories.map((cat, index) => {
-            if (cat.name === '---') {
+            if (cat.type === 'divider' || cat.name === '---') { // Check both type and name for legacy
               return (
                  <div key={cat.id} className="relative py-1">
                     <div className="divider-item"><div className="divider-line"></div></div>
@@ -330,7 +393,7 @@ export default function App() {
             }
 
             const count = notes.filter(n => n.categoryId === cat.id).length;
-            const isForm = cat.name.includes('[表單]');
+            const isForm = cat.type === 'form';
             
             return (
               <div 
@@ -340,6 +403,7 @@ export default function App() {
               >
                 <div>
                   <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                    {/* 直接顯示乾淨的名稱，不再需要切字串 */}
                     {cat.name}
                     {isForm && <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 rounded">表單</span>}
                   </h3>
@@ -367,7 +431,7 @@ export default function App() {
   const renderNoteList = () => {
     const activeCat = categories.find(c => c.id === activeCategoryId);
     const activeCatName = activeCat?.name;
-    const isForm = isFormCategory(activeCategoryId);
+    const isForm = activeCat?.type === 'form';
 
     let filtered = notes.filter(n => n.categoryId === activeCategoryId);
     const currentNotes = filtered.sort((a, b) => {
@@ -376,11 +440,10 @@ export default function App() {
     });
 
     return (
-      <div className="flex flex-col h-full bg-gray-50"> 
+      <div className="flex flex-col h-full bg-gray-50 w-full overflow-hidden"> 
         <header className="bg-white p-4 shadow-sm flex justify-between items-center sticky top-0 z-10 shrink-0">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <button onClick={() => setView('categories')} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full"><ChevronLeft size={26} /></button>
-            {/* 移除 handwriting-title，讓分類標題使用標準字體 */}
             <h1 className="text-2xl font-bold text-gray-800 truncate tracking-wide pt-1">{activeCatName}</h1>
           </div>
           <div className="flex gap-2 shrink-0">
@@ -393,7 +456,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 w-full">
           {currentNotes.length === 0 ? (
             <div className="text-center text-gray-300 mt-20">
               <p className="handwriting-title text-3xl mb-2">Empty...</p>
@@ -466,7 +529,8 @@ export default function App() {
         </div>
       )}
 
-      <div className="flex-1 overflow-hidden relative">
+      {/* Main Content View with strict overflow handling */}
+      <div className="flex-1 overflow-hidden relative w-full">
         {view === 'categories' && renderCategories()}
         {view === 'notes' && renderNoteList()}
         {view === 'editor' && renderEditor()}
@@ -474,7 +538,7 @@ export default function App() {
 
       {showSearchModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50">
-           <div className="bg-white w-full h-[85vh] sm:h-auto sm:w-[90%] sm:max-w-xs sm:rounded-3xl rounded-t-3xl p-6 flex flex-col">
+           <div className="bg-white w-full h-[85vh] sm:h-auto sm:w-[90%] sm:max-w-xs sm:rounded-3xl rounded-t-3xl p-6 flex flex-col overflow-hidden">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-gray-800">搜尋</h3>
                 <button onClick={() => setShowSearchModal(false)} className="p-2 bg-gray-100 rounded-full"><X size={18}/></button>
@@ -497,7 +561,7 @@ export default function App() {
 
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50">
-           <div className="bg-white w-full sm:w-[90%] sm:max-w-xs sm:rounded-3xl rounded-t-3xl p-6">
+           <div className="bg-white w-full sm:w-[90%] sm:max-w-xs sm:rounded-3xl rounded-t-3xl p-6 overflow-hidden">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-gray-800">設定</h3>
                 <button onClick={() => setShowSettingsModal(false)} className="p-2 bg-gray-100 rounded-full"><X size={18}/></button>
@@ -519,22 +583,52 @@ export default function App() {
 
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-2xl">
+          <div className="bg-white rounded-3xl p-6 w-[90%] max-w-xs shadow-2xl overflow-hidden">
             <h3 className="text-xl font-bold mb-4 text-gray-800">新增分類</h3>
-            <div className="space-y-2 mb-6">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded text-xs font-mono">[表單]</span>
-                <span>啟用檢核表模式</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-xs font-mono">---</span>
-                <span>建立分隔線</span>
-              </div>
+            
+            {/* 類型選擇器 */}
+            <div className="grid grid-cols-3 gap-2 mb-6">
+              <button 
+                onClick={() => setNewCategoryType('general')}
+                className={`p-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${newCategoryType === 'general' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-100 text-gray-400'}`}
+              >
+                <Folder size={24} />
+                <span className="text-xs font-bold">一般</span>
+              </button>
+              <button 
+                onClick={() => setNewCategoryType('form')}
+                className={`p-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${newCategoryType === 'form' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-100 text-gray-400'}`}
+              >
+                <CheckSquare size={24} />
+                <span className="text-xs font-bold">表單</span>
+              </button>
+              <button 
+                onClick={() => setNewCategoryType('divider')}
+                className={`p-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${newCategoryType === 'divider' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-100 text-gray-400'}`}
+              >
+                <Minus size={24} />
+                <span className="text-xs font-bold">分隔線</span>
+              </button>
             </div>
-            <input autoFocus type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="輸入分類名稱..." className="w-full p-4 bg-gray-50 border-none rounded-xl mb-4 text-lg outline-none"/>
+
+            {newCategoryType !== 'divider' ? (
+              <input 
+                autoFocus
+                type="text" 
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder={newCategoryType === 'form' ? "表單名稱..." : "分類名稱..."}
+                className="w-full p-4 bg-gray-50 border-none rounded-xl mb-4 text-lg outline-none focus:ring-2 focus:ring-orange-200"
+              />
+            ) : (
+              <div className="w-full p-4 bg-gray-50 rounded-xl mb-4 text-center text-gray-400 text-sm">
+                將建立一條視覺分隔線
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button onClick={() => setShowNewCategoryModal(false)} className="flex-1 py-3 text-gray-500 font-bold bg-gray-50 rounded-xl">取消</button>
-              <button onClick={handleCreateCategory} className="flex-1 py-3 text-white bg-orange-500 font-bold rounded-xl">建立</button>
+              <button onClick={handleCreateCategory} className="flex-1 py-3 text-white bg-orange-500 font-bold rounded-xl shadow-lg shadow-orange-200">建立</button>
             </div>
           </div>
         </div>
@@ -556,10 +650,21 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
   };
 
   const handleTogglePin = () => onUpdate({ isPinned: !note.isPinned });
-  // 關鍵修復：加入 e.preventDefault() 防止點擊按鈕時失去焦點，導致鍵盤收起或無法套用樣式
+  // 防止失去焦點
   const execCmd = (e, cmd, val = null) => { 
     e.preventDefault(); 
     document.execCommand(cmd, false, val); 
+  };
+  
+  // 字體大小循環：標準(3) -> 大(4) -> 特大(5) -> 小(1) -> 標準(3)
+  const FONT_SIZES = [3, 4, 5, 1];
+  const [currentFontSizeIdx, setCurrentFontSizeIdx] = useState(0); // 0 corresponds to size 3
+
+  const cycleFontSize = (e) => {
+    e.preventDefault();
+    const nextIdx = (currentFontSizeIdx + 1) % FONT_SIZES.length;
+    setCurrentFontSizeIdx(nextIdx);
+    document.execCommand('fontSize', false, FONT_SIZES[nextIdx]);
   };
   
   const processReadContent = (html) => {
@@ -568,7 +673,7 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white animate-in slide-in-from-right duration-300">
+    <div className="flex flex-col h-full bg-white animate-in slide-in-from-right duration-300 w-full overflow-hidden">
       <header className="flex justify-between items-center p-2 border-b border-gray-100 shrink-0">
         <button onClick={onBack} className="p-3 text-gray-500 rounded-full hover:bg-gray-50"><ChevronLeft size={24} /></button>
         {isEditing ? (
@@ -582,7 +687,7 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6 relative">
+      <div className="flex-1 overflow-y-auto p-6 relative w-full">
         {isEditing ? (
           <div ref={contentRef} className="editor-content w-full h-full text-gray-700" contentEditable suppressContentEditableWarning placeholder="開始輸入..." />
         ) : (
@@ -594,17 +699,24 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
         {isEditing ? (
           <div className="flex items-center gap-2 animate-in slide-in-from-bottom duration-200">
              <div className="flex-1 overflow-x-auto hide-scrollbar flex items-center gap-3 pr-2">
+                {/* Font Size & Indent */}
                 <div className="flex bg-gray-50 rounded-lg p-1 border border-gray-100 shrink-0">
+                  <button onMouseDown={cycleFontSize} className="p-2 hover:bg-white rounded text-gray-600 w-10"><Type size={18}/></button>
+                  <div className="w-[1px] bg-gray-200 mx-1"></div>
                   <button onMouseDown={(e) => execCmd(e, 'outdent')} className="p-2 hover:bg-white rounded text-gray-600"><Outdent size={18}/></button>
                   <div className="w-[1px] bg-gray-200 mx-1"></div>
                   <button onMouseDown={(e) => execCmd(e, 'indent')} className="p-2 hover:bg-white rounded text-gray-600"><Indent size={18}/></button>
                 </div>
+                
                 <div className="w-[1px] h-8 bg-gray-200 shrink-0"></div>
+                
                 {/* Text Color */}
                 <div className="flex gap-2 shrink-0">
                   {COLOR_PALETTE.map(c => <button key={`txt-${c.id}`} onMouseDown={(e) => execCmd(e, 'foreColor', c.text)} className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center bg-white shadow-sm text-sm font-bold" style={{ color: c.text }}>A</button>)}
                 </div>
+                
                 <div className="w-[1px] h-8 bg-gray-200 shrink-0"></div>
+                
                 {/* Bg Color */}
                 <div className="flex gap-2 shrink-0">
                   {COLOR_PALETTE.map(c => <button key={`bg-${c.id}`} onMouseDown={(e) => execCmd(e, 'hiliteColor', c.bg)} className="w-8 h-8 rounded-full border border-gray-200 hover:scale-110 transition-transform shadow-sm relative" style={{ backgroundColor: c.bg === 'transparent' ? '#fff' : c.bg }} title={c.label}>
@@ -672,7 +784,7 @@ const ChecklistEditor = ({ note, onUpdate, onBack, onDelete }) => {
   const handleTogglePin = () => onUpdate({ isPinned: !note.isPinned });
 
   return (
-    <div className="flex flex-col h-full bg-white animate-in slide-in-from-right duration-300">
+    <div className="flex flex-col h-full bg-white animate-in slide-in-from-right duration-300 w-full overflow-hidden">
       <header className="flex justify-between items-center p-2 border-b border-gray-100 bg-orange-50/30 shrink-0">
         <button onClick={onBack} className="p-3 text-gray-500 rounded-full hover:bg-gray-50"><ChevronLeft size={24} /></button>
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={handleTitleBlur} className="flex-1 mx-2 text-center font-bold text-xl border-b-2 border-orange-100 outline-none py-1 text-gray-800 bg-transparent" placeholder="表單名稱"/>
@@ -682,7 +794,7 @@ const ChecklistEditor = ({ note, onUpdate, onBack, onDelete }) => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 pb-24">
+      <div className="flex-1 overflow-y-auto p-4 pb-24 w-full">
         {items.length === 0 && !isEditing && (
            <div className="text-center text-gray-400 mt-20">沒有檢查項目<br/>點擊右下角設定新增</div>
         )}
