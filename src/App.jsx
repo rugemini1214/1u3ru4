@@ -20,11 +20,10 @@ import {
 } from 'lucide-react';
 
 /**
- * 版本編號與全域設定
+ * Version & Global Config
  */
 const APP_VERSION = "v1.8";
 
-// 定義色系：實用四色 (黑、紅、綠、藍)
 const COLOR_PALETTE = [
   { id: 'default', label: '預設', text: '#374151', bg: 'transparent', bgLabel: '無' }, 
   { id: 'red',     label: '紅',   text: '#ef4444', bg: '#fee2e2' }, 
@@ -37,17 +36,17 @@ const FONTS_CSS = `
   
   body {
     font-family: 'Noto Sans TC', 'Noto Sans JP', 'Noto Sans KR', sans-serif;
-    background-color: #f9fafb; /* 冷灰白背景 */
+    background-color: #f9fafb;
     overscroll-behavior-y: none;
   }
 
-  /* 優雅成熟的手寫標題字體 */
+  /* Handwriting Title Font */
   .handwriting-title {
     font-family: 'Dancing Script', cursive;
     letter-spacing: 0.5px;
   }
 
-  /* 編輯器樣式重置與設定 */
+  /* Editor Reset */
   .editor-content {
     min-height: 50vh;
     outline: none;
@@ -55,7 +54,7 @@ const FONTS_CSS = `
     font-size: 1.05rem;
   }
   
-  /* 縮排樣式 */
+  /* Blockquote Style */
   .editor-content blockquote {
     margin-left: 1.5rem;
     padding-left: 0.5rem;
@@ -64,7 +63,7 @@ const FONTS_CSS = `
     color: #6b7280;
   }
 
-  /* 隱藏連結樣式 */
+  /* Link Icon Style */
   .link-icon {
     display: inline-flex;
     align-items: center;
@@ -81,7 +80,7 @@ const FONTS_CSS = `
     width: 1.4em;
   }
 
-  /* 自定義分隔線樣式 */
+  /* Divider Style */
   .divider-item {
     display: flex;
     align-items: center;
@@ -96,7 +95,7 @@ const FONTS_CSS = `
     border-radius: 2px;
   }
   
-  /* 隱藏 Scrollbar 但保留功能 */
+  /* Hide Scrollbar */
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -105,13 +104,13 @@ const FONTS_CSS = `
     scrollbar-width: none;
   }
 
-  /* 置頂筆記樣式 */
+  /* Pinned Note Style */
   .pinned-note {
     border-left: 4px solid #f97316 !important; 
     background-color: white !important;
   }
   
-  /* 便利貼樣式 (移除線條，純淨背景) */
+  /* Sticky Memo Style (Clean Background) */
   .sticky-memo textarea {
     background-color: transparent;
     line-height: 1.6em;
@@ -131,7 +130,7 @@ export default function App() {
   
   // Search & Filter
   const [categorySearch, setCategorySearch] = useState('');
-  const [showSearchModal, setShowSearchModal] = useState(false); // New Search Modal State
+  const [showSearchModal, setShowSearchModal] = useState(false);
   
   // Settings & Management
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -320,8 +319,6 @@ export default function App() {
   // --- Render Views ---
 
   const renderCategories = () => {
-    // Normal category filter (for the list below) - always show all unless filtered by something else
-    // Since search is now in a modal, the main list just shows all.
     const displayCategories = categories;
 
     return (
@@ -329,7 +326,6 @@ export default function App() {
         {/* Header */}
         <header className="bg-white p-5 pb-3 shadow-sm sticky top-0 z-10">
           <div className="flex justify-between items-center mb-2">
-            {/* Title: No Version Number here */}
             <h1 className="text-4xl font-bold text-orange-600 handwriting-title pt-2">
               litenote
             </h1>
@@ -702,7 +698,7 @@ export default function App() {
 }
 
 /**
- * 富文字編輯器元件
+ * Rich Text Editor Component
  */
 const Editor = ({ note, onUpdate, onBack, onDelete }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -818,7 +814,6 @@ const Editor = ({ note, onUpdate, onBack, onDelete }) => {
           <div 
             className="editor-content w-full h-full text-gray-700 prose prose-orange max-w-none"
             dangerouslySetInnerHTML={{ __html: processReadContent(note.content) }}
-            /* 移除 onClick={() => setIsEditing(true)} 以防止誤觸 */
           />
         )}
       </div>
@@ -868,7 +863,7 @@ const Editor = ({ note, onUpdate, onBack, onDelete }) => {
                        style={{ backgroundColor: c.bg === 'transparent' ? '#fff' : c.bg }}
                        title={`底色：${c.bgLabel || c.label}`}
                      >
-                        {/* 如果是透明，畫一個斜線表示無 */}
+                        {/* Transparent: diagonal line */}
                         {c.bg === 'transparent' && (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="w-full h-[1px] bg-red-400 rotate-45 transform scale-75"></div>

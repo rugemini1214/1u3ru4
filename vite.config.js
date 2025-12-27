@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  // 設定為您的 repo 名稱
+  // Project Base Path
   base: '/1u3ru4/', 
 
   plugins: [
@@ -19,7 +19,7 @@ export default defineConfig({
         background_color: '#f9fafb',
         display: 'standalone', 
         orientation: 'portrait',
-        // PWA 範圍設定
+        // PWA Scope
         scope: '/1u3ru4/',
         start_url: '/1u3ru4/',
         icons: [
