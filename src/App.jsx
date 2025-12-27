@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // 請將下面這一行 import 的註解取消 (刪除最前面的 // )
 // import { useRegisterSW } from 'virtual:pwa-register/react';
 
-// ⚠️ 預覽環境專用 Mock (部屬時若上方已取消註解，這段 Mock 可以保留不動，不影響)
+// ⚠️ 預覽環境專用 Mock
 const useRegisterSW = typeof window !== 'undefined' && window.virtualPwaRegister 
   ? window.virtualPwaRegister 
   : () => ({
@@ -41,7 +41,7 @@ import {
 /**
  * 版本編號與全域設定
  */
-const APP_VERSION = "v2.8";
+const APP_VERSION = "v2.9";
 
 // 定義色系
 const COLOR_PALETTE = [
@@ -59,8 +59,8 @@ const FONTS_CSS = `
     height: 100%;
     width: 100%;
     max-width: 100vw;
-    overflow: hidden; /* 關鍵：隱藏所有溢出 */
-    overflow-x: hidden; /* 雙重保險：隱藏水平溢出 */
+    overflow: hidden; 
+    overflow-x: hidden; /* 強制隱藏水平溢出 */
     overscroll-behavior: none;
     position: fixed;
   }
@@ -82,12 +82,11 @@ const FONTS_CSS = `
     outline: none;
     line-height: 1.7;
     font-size: 1.15rem;
-    overflow-x: hidden; /* 防止內容撐開水平卷軸 */
-    word-wrap: break-word; /* 自動換行 */
+    overflow-x: hidden; 
+    word-wrap: break-word; 
     overflow-wrap: break-word;
   }
   
-  /* 定義 execCommand 產生的 font size 對應大小 */
   font[size="1"] { font-size: 0.85rem; }
   font[size="3"] { font-size: 1.15rem; }
   font[size="4"] { font-size: 1.4rem; font-weight: bold; }
@@ -131,7 +130,6 @@ const FONTS_CSS = `
     border-radius: 2px;
   }
   
-  /* 全域隱藏 Scrollbar */
   .hide-scrollbar::-webkit-scrollbar { display: none; }
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -153,7 +151,7 @@ const FONTS_CSS = `
     padding: 0.5rem 0;
     border-bottom: 1px solid #f3f4f6;
     width: 100%;
-    overflow-wrap: break-word; /* 確保長文字換行 */
+    overflow-wrap: break-word;
   }
   .checklist-item:last-child { border-bottom: none; }
 `;
@@ -177,7 +175,6 @@ export default function App() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [isManageMode, setIsManageMode] = useState(false);
   
-  // New Category States
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryType, setNewCategoryType] = useState('general');
@@ -675,7 +672,7 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
       <header className="flex justify-between items-center p-2 border-b border-gray-100 shrink-0">
         <button onClick={onBack} className="p-3 text-gray-500 rounded-full hover:bg-gray-50"><ChevronLeft size={24} /></button>
         {isEditing ? (
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => onUpdate({title})} className="flex-1 mx-2 text-center font-bold text-xl border-b-2 border-orange-100 outline-none py-1 text-gray-700 min-w-0" placeholder="標題"/>
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => onUpdate({title})} className="flex-1 px-2 text-center font-bold text-xl border-b-2 border-orange-100 outline-none py-1 text-gray-700 min-w-0" placeholder="標題"/>
         ) : (
           <h2 className="flex-1 mx-4 text-center font-bold text-xl truncate text-gray-800">{title}</h2>
         )}
@@ -797,7 +794,7 @@ const ChecklistEditor = ({ note, onUpdate, onBack, onDelete }) => {
     <div className="flex flex-col h-full bg-white animate-in slide-in-from-right duration-300 w-full overflow-hidden">
       <header className="flex justify-between items-center p-2 border-b border-gray-100 bg-orange-50/30 shrink-0">
         <button onClick={onBack} className="p-3 text-gray-500 rounded-full hover:bg-gray-50"><ChevronLeft size={24} /></button>
-        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={handleTitleBlur} className="flex-1 mx-2 text-center font-bold text-xl border-b-2 border-orange-100 outline-none py-1 text-gray-800 bg-transparent min-w-0" placeholder="表單名稱"/>
+        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={handleTitleBlur} className="flex-1 px-2 text-center font-bold text-xl border-b-2 border-orange-100 outline-none py-1 text-gray-800 bg-transparent min-w-0" placeholder="表單名稱"/>
         <div className="flex gap-1">
           <button onClick={handleTogglePin} className={`p-3 rounded-full transition-colors ${note.isPinned ? 'text-orange-500 bg-orange-50' : 'text-gray-300 hover:bg-gray-50'}`}><Bookmark size={20} fill={note.isPinned ? "currentColor" : "none"} /></button>
           <button onClick={onDelete} className="p-3 text-red-300 rounded-full hover:bg-red-50 hover:text-red-500"><Trash2 size={20} /></button>
@@ -838,9 +835,9 @@ const ChecklistEditor = ({ note, onUpdate, onBack, onDelete }) => {
               value={newItemText}
               onChange={(e) => setNewItemText(e.target.value)}
               placeholder="輸入新項目..."
-              className="flex-1 min-w-0 p-3 bg-gray-50 rounded-xl outline-none border border-gray-200 focus:border-orange-400 text-base"
+              className="flex-1 min-w-0 w-0 p-3 bg-gray-50 rounded-xl outline-none border border-gray-200 focus:border-orange-400 text-base"
             />
-            <button type="submit" className="p-3 bg-orange-100 text-orange-600 rounded-xl font-bold shrink-0"><Plus size={24}/></button>
+            <button type="submit" className="p-2 w-12 h-12 flex items-center justify-center bg-orange-100 text-orange-600 rounded-xl font-bold shrink-0"><Plus size={24}/></button>
           </form>
         )}
       </div>
