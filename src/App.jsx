@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// ⚠️ 注意：在您的電腦上開發或部屬時，請【取消註解】下面這一行，以啟用 PWA 自動更新功能
+// ⚠️ 【部屬前請務必執行此步驟】：
+// 請將下面這一行 import 的註解取消 (刪除最前面的 // )
 // import { useRegisterSW } from 'virtual:pwa-register/react';
 
-// ⚠️ 預覽環境專用 Mock (部屬時請刪除這段 Mock，並使用上面的 import)
-const useRegisterSW = () => ({
-  needRefresh: [false, () => {}],
-  updateServiceWorker: () => {}
-});
+// ⚠️ 預覽環境專用 Mock (部屬時若上方已取消註解，這段 Mock 可以保留不動，不影響)
+const useRegisterSW = typeof window !== 'undefined' && window.virtualPwaRegister 
+  ? window.virtualPwaRegister 
+  : () => ({
+      needRefresh: [false, () => {}],
+      updateServiceWorker: () => {}
+    });
 
 import { 
   Plus, 
@@ -38,7 +41,7 @@ import {
 /**
  * 版本編號與全域設定
  */
-const APP_VERSION = "v2.5";
+const APP_VERSION = "v2.6";
 
 // 定義色系
 const COLOR_PALETTE = [
@@ -51,13 +54,13 @@ const COLOR_PALETTE = [
 const FONTS_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+KR:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
   
-  /* 鎖定 html, body 防止彈性捲動 */
+  /* 鎖定 html, body 防止彈性捲動與水平溢出 */
   html, body, #root {
     height: 100%;
     width: 100%;
-    overflow: hidden;
+    overflow: hidden; /* 關鍵：隱藏所有溢出 */
     overscroll-behavior: none;
-    position: fixed; /* 強制固定 */
+    position: fixed;
   }
 
   body {
@@ -76,14 +79,15 @@ const FONTS_CSS = `
     min-height: 50vh;
     outline: none;
     line-height: 1.7;
-    font-size: 1.15rem; /* 預設字體加大 */
+    font-size: 1.15rem;
+    overflow-x: hidden; /* 防止內容撐開水平卷軸 */
   }
   
   /* 定義 execCommand 產生的 font size 對應大小 */
-  font[size="1"] { font-size: 0.85rem; } /* 小 */
-  font[size="3"] { font-size: 1.15rem; } /* 標準 (同預設) */
-  font[size="4"] { font-size: 1.4rem; font-weight: bold; } /* 大 */
-  font[size="5"] { font-size: 1.75rem; font-weight: bold; border-bottom: 2px solid #fdba74; } /* 特大 (加底線強調) */
+  font[size="1"] { font-size: 0.85rem; }
+  font[size="3"] { font-size: 1.15rem; }
+  font[size="4"] { font-size: 1.4rem; font-weight: bold; }
+  font[size="5"] { font-size: 1.75rem; font-weight: bold; border-bottom: 2px solid #fdba74; }
 
   .editor-content blockquote {
     margin-left: 1.5rem;
@@ -123,6 +127,7 @@ const FONTS_CSS = `
     border-radius: 2px;
   }
   
+  /* 全域隱藏 Scrollbar */
   .hide-scrollbar::-webkit-scrollbar { display: none; }
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -169,7 +174,7 @@ export default function App() {
   // New Category States
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryType, setNewCategoryType] = useState('general'); // 'general' | 'form' | 'divider'
+  const [newCategoryType, setNewCategoryType] = useState('general');
   
   const fileInputRef = useRef(null); 
 
@@ -180,31 +185,16 @@ export default function App() {
     
     if (savedCategories) {
       let parsed = JSON.parse(savedCategories);
-      
-      // v2.5 資料結構遷移：將 [表單] 前綴移除，改用 type 欄位
-      // 這樣以後改名就不會影響功能
       const migrated = parsed.map(c => {
-        // 如果已經有 type，直接回傳
         if (c.type) return c;
-
-        // 如果是舊的表單命名方式
         if (c.name.includes('[表單]')) {
-          return { 
-            ...c, 
-            name: c.name.replace('[表單]', '').trim(), // 移除前綴文字
-            type: 'form' // 標記為表單類型
-          };
+          return { ...c, name: c.name.replace('[表單]', '').trim(), type: 'form' };
         }
-        
-        // 如果是分隔線
         if (c.name === '---') {
           return { ...c, type: 'divider' };
         }
-
-        // 預設
         return { ...c, type: 'general' };
       });
-
       setCategories(migrated);
     } else {
       setCategories([]);
@@ -218,7 +208,6 @@ export default function App() {
   useEffect(() => { localStorage.setItem('litenote_notes', JSON.stringify(notes)); }, [notes]);
   useEffect(() => { localStorage.setItem('litenote_memo', memo); }, [memo]);
 
-  // 新的檢查方式：直接看 type 欄位
   const isFormCategory = (catId) => {
     const cat = categories.find(c => c.id === catId);
     return cat && cat.type === 'form';
@@ -250,14 +239,12 @@ export default function App() {
         const data = JSON.parse(event.target.result);
         if (data.categories && data.notes) {
           if (window.confirm('還原將會覆蓋現有資料，確定繼續嗎？')) {
-            // Import 時也做一次檢查/遷移，避免舊備份蓋掉新結構
             const migratedCategories = data.categories.map(c => {
                if (c.type) return c;
                if (c.name.includes('[表單]')) return { ...c, name: c.name.replace('[表單]', '').trim(), type: 'form' };
                if (c.name === '---') return { ...c, type: 'divider' };
                return { ...c, type: 'general' };
             });
-            
             setCategories(migratedCategories);
             setNotes(data.notes);
             if (data.memo) setMemo(data.memo);
@@ -277,15 +264,12 @@ export default function App() {
       finalName = '---';
     } else {
       if (!finalName) return; 
-      // 不再需要手動加 [表單] 前綴
     }
-    
     const newCat = { 
       id: Date.now().toString(), 
       name: finalName,
-      type: newCategoryType // 直接儲存類型
+      type: newCategoryType 
     };
-    
     setCategories([...categories, newCat]);
     setNewCategoryName('');
     setNewCategoryType('general');
@@ -361,7 +345,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 w-full">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 w-full hide-scrollbar">
           <div className="bg-yellow-100 p-3 rounded-xl border border-yellow-200 shadow-sm mb-4 sticky-memo transform rotate-[0.5deg]">
             <textarea 
               value={memo}
@@ -377,7 +361,7 @@ export default function App() {
           )}
 
           {categories.map((cat, index) => {
-            if (cat.type === 'divider' || cat.name === '---') { // Check both type and name for legacy
+            if (cat.type === 'divider' || cat.name === '---') {
               return (
                  <div key={cat.id} className="relative py-1">
                     <div className="divider-item"><div className="divider-line"></div></div>
@@ -401,17 +385,20 @@ export default function App() {
                 onClick={() => { setActiveCategoryId(cat.id); setView('notes'); }}
                 className={`relative bg-white p-4 rounded-2xl shadow-sm border ${isForm ? 'border-l-4 border-l-orange-400 border-gray-100' : 'border-orange-100'} flex justify-between items-center active:scale-[0.98] transition-all cursor-pointer hover:shadow-md min-h-[4rem]`}
               >
-                <div>
+                {/* 分類名稱與數量顯示優化：數量移至右側單行 */}
+                <div className="flex-1">
                   <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                    {/* 直接顯示乾淨的名稱，不再需要切字串 */}
                     {cat.name}
                     {isForm && <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 rounded">表單</span>}
                   </h3>
-                  <p className="text-xs text-gray-400 font-medium">{count} 個項目</p>
+                </div>
+                
+                <div className="ml-4 text-sm font-bold text-gray-300 min-w-[1.5rem] text-center">
+                  {count}
                 </div>
                 
                 {isManageMode && (
-                  <div className="flex items-center gap-1 bg-white pl-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1 bg-white pl-2 absolute right-2" onClick={(e) => e.stopPropagation()}>
                     <button onClick={(e) => { e.stopPropagation(); handleRenameCategory(cat.id, cat.name); }} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-full mr-1"><Edit2 size={18}/></button>
                     <div className="flex flex-col mr-2 border-r pr-2 border-gray-100">
                       <button onClick={(e) => moveCategory(index, -1, e)} disabled={index === 0} className="p-1 hover:bg-orange-50 rounded text-gray-400 hover:text-orange-500 disabled:opacity-30"><ArrowUp size={16}/></button>
@@ -456,7 +443,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 w-full">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 w-full hide-scrollbar">
           {currentNotes.length === 0 ? (
             <div className="text-center text-gray-300 mt-20">
               <p className="handwriting-title text-3xl mb-2">Empty...</p>
@@ -522,7 +509,10 @@ export default function App() {
       
       {needRefresh && (
         <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom duration-500">
-           <button onClick={() => updateServiceWorker(true)} className="bg-gray-800 text-white text-sm px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 hover:bg-gray-700">
+           <button 
+             onClick={() => updateServiceWorker(true)} // 強制重整
+             className="bg-gray-800 text-white text-sm px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 hover:bg-gray-700"
+           >
              <RefreshCw size={18} className="animate-spin-slow"/>
              <span>發現新版本，點擊更新</span>
            </button>
@@ -547,7 +537,7 @@ export default function App() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input autoFocus type="text" value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} placeholder="關鍵字..." className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl text-base outline-none"/>
               </div>
-              <div className="flex-1 overflow-y-auto space-y-3 min-h-[200px]">
+              <div className="flex-1 overflow-y-auto space-y-3 min-h-[200px] hide-scrollbar">
                  {notes.filter(n => (n.title.toLowerCase().includes(categorySearch.toLowerCase()) || n.content.includes(categorySearch.toLowerCase())) && categorySearch).map(note => (
                    <div key={note.id} onClick={() => { setActiveCategoryId(note.categoryId); setActiveNoteId(note.id); setView('editor'); setShowSearchModal(false); }} className="bg-white p-4 rounded-xl border border-gray-100 active:scale-[0.98]">
                       <h3 className="font-bold text-gray-800">{note.title || '未命名'}</h3>
@@ -585,47 +575,22 @@ export default function App() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl p-6 w-[90%] max-w-xs shadow-2xl overflow-hidden">
             <h3 className="text-xl font-bold mb-4 text-gray-800">新增分類</h3>
-            
-            {/* 類型選擇器 */}
             <div className="grid grid-cols-3 gap-2 mb-6">
-              <button 
-                onClick={() => setNewCategoryType('general')}
-                className={`p-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${newCategoryType === 'general' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-100 text-gray-400'}`}
-              >
-                <Folder size={24} />
-                <span className="text-xs font-bold">一般</span>
+              <button onClick={() => setNewCategoryType('general')} className={`p-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${newCategoryType === 'general' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-100 text-gray-400'}`}>
+                <Folder size={24} /> <span className="text-xs font-bold">一般</span>
               </button>
-              <button 
-                onClick={() => setNewCategoryType('form')}
-                className={`p-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${newCategoryType === 'form' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-100 text-gray-400'}`}
-              >
-                <CheckSquare size={24} />
-                <span className="text-xs font-bold">表單</span>
+              <button onClick={() => setNewCategoryType('form')} className={`p-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${newCategoryType === 'form' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-100 text-gray-400'}`}>
+                <CheckSquare size={24} /> <span className="text-xs font-bold">表單</span>
               </button>
-              <button 
-                onClick={() => setNewCategoryType('divider')}
-                className={`p-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${newCategoryType === 'divider' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-100 text-gray-400'}`}
-              >
-                <Minus size={24} />
-                <span className="text-xs font-bold">分隔線</span>
+              <button onClick={() => setNewCategoryType('divider')} className={`p-3 rounded-xl flex flex-col items-center gap-2 border transition-all ${newCategoryType === 'divider' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-100 text-gray-400'}`}>
+                <Minus size={24} /> <span className="text-xs font-bold">分隔線</span>
               </button>
             </div>
-
             {newCategoryType !== 'divider' ? (
-              <input 
-                autoFocus
-                type="text" 
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder={newCategoryType === 'form' ? "表單名稱..." : "分類名稱..."}
-                className="w-full p-4 bg-gray-50 border-none rounded-xl mb-4 text-lg outline-none focus:ring-2 focus:ring-orange-200"
-              />
+              <input autoFocus type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder={newCategoryType === 'form' ? "表單名稱..." : "分類名稱..."} className="w-full p-4 bg-gray-50 border-none rounded-xl mb-4 text-lg outline-none focus:ring-2 focus:ring-orange-200"/>
             ) : (
-              <div className="w-full p-4 bg-gray-50 rounded-xl mb-4 text-center text-gray-400 text-sm">
-                將建立一條視覺分隔線
-              </div>
+              <div className="w-full p-4 bg-gray-50 rounded-xl mb-4 text-center text-gray-400 text-sm">將建立一條視覺分隔線</div>
             )}
-
             <div className="flex gap-3">
               <button onClick={() => setShowNewCategoryModal(false)} className="flex-1 py-3 text-gray-500 font-bold bg-gray-50 rounded-xl">取消</button>
               <button onClick={handleCreateCategory} className="flex-1 py-3 text-white bg-orange-500 font-bold rounded-xl shadow-lg shadow-orange-200">建立</button>
@@ -641,6 +606,9 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(note.title);
   const contentRef = useRef(null);
+  
+  // 新增：用來記錄游標位置的 Ref
+  const selectionRef = useRef(null);
 
   useEffect(() => { if (isEditing && contentRef.current) contentRef.current.innerHTML = note.content; }, [isEditing]);
 
@@ -650,21 +618,45 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
   };
 
   const handleTogglePin = () => onUpdate({ isPinned: !note.isPinned });
-  // 防止失去焦點
+
+  // 1. 儲存選取範圍 (在 onBlur 時呼叫，但我們需要更主動的儲存時機)
+  // 實際上，更好的做法是在每個可能失去焦點的操作前先存，或是監聽 selectionchange
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0) {
+      selectionRef.current = sel.getRangeAt(0);
+    }
+  };
+
+  // 2. 還原選取範圍
+  const restoreSelection = () => {
+    if (selectionRef.current) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(selectionRef.current);
+    }
+  };
+
+  // 3. 執行指令：先還原選取，再執行，並阻止預設行為(防止鍵盤收起)
   const execCmd = (e, cmd, val = null) => { 
-    e.preventDefault(); 
+    e.preventDefault(); // 防止按鈕點擊導致 focus 跑到按鈕上
+    restoreSelection(); // 嘗試還原失去焦點前的選取
     document.execCommand(cmd, false, val); 
+    // 執行後更新選取狀態，以免連續操作時位置跑掉
+    saveSelection();
   };
   
-  // 字體大小循環：標準(3) -> 大(4) -> 特大(5) -> 小(1) -> 標準(3)
+  // 4. 字體大小循環
   const FONT_SIZES = [3, 4, 5, 1];
-  const [currentFontSizeIdx, setCurrentFontSizeIdx] = useState(0); // 0 corresponds to size 3
+  const [currentFontSizeIdx, setCurrentFontSizeIdx] = useState(0); 
 
   const cycleFontSize = (e) => {
     e.preventDefault();
+    restoreSelection();
     const nextIdx = (currentFontSizeIdx + 1) % FONT_SIZES.length;
     setCurrentFontSizeIdx(nextIdx);
     document.execCommand('fontSize', false, FONT_SIZES[nextIdx]);
+    saveSelection();
   };
   
   const processReadContent = (html) => {
@@ -687,9 +679,21 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6 relative w-full">
+      <div className="flex-1 overflow-y-auto p-6 relative w-full hide-scrollbar">
         {isEditing ? (
-          <div ref={contentRef} className="editor-content w-full h-full text-gray-700" contentEditable suppressContentEditableWarning placeholder="開始輸入..." />
+          <div 
+            ref={contentRef} 
+            className="editor-content w-full h-full text-gray-700" 
+            contentEditable 
+            suppressContentEditableWarning 
+            placeholder="開始輸入..." 
+            // 當游標離開或鍵盤收起(Blur)時，自動記錄位置
+            onBlur={saveSelection}
+            // 當手指點擊或輸入時，也更新位置，確保最新
+            onMouseUp={saveSelection}
+            onKeyUp={saveSelection}
+            onTouchEnd={saveSelection}
+          />
         ) : (
           <div className="editor-content w-full h-full text-gray-700 prose prose-orange max-w-none" dangerouslySetInnerHTML={{ __html: processReadContent(note.content) }} />
         )}
@@ -699,7 +703,6 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
         {isEditing ? (
           <div className="flex items-center gap-2 animate-in slide-in-from-bottom duration-200">
              <div className="flex-1 overflow-x-auto hide-scrollbar flex items-center gap-3 pr-2">
-                {/* Font Size & Indent */}
                 <div className="flex bg-gray-50 rounded-lg p-1 border border-gray-100 shrink-0">
                   <button onMouseDown={cycleFontSize} className="p-2 hover:bg-white rounded text-gray-600 w-10"><Type size={18}/></button>
                   <div className="w-[1px] bg-gray-200 mx-1"></div>
@@ -707,17 +710,11 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
                   <div className="w-[1px] bg-gray-200 mx-1"></div>
                   <button onMouseDown={(e) => execCmd(e, 'indent')} className="p-2 hover:bg-white rounded text-gray-600"><Indent size={18}/></button>
                 </div>
-                
                 <div className="w-[1px] h-8 bg-gray-200 shrink-0"></div>
-                
-                {/* Text Color */}
                 <div className="flex gap-2 shrink-0">
                   {COLOR_PALETTE.map(c => <button key={`txt-${c.id}`} onMouseDown={(e) => execCmd(e, 'foreColor', c.text)} className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center bg-white shadow-sm text-sm font-bold" style={{ color: c.text }}>A</button>)}
                 </div>
-                
                 <div className="w-[1px] h-8 bg-gray-200 shrink-0"></div>
-                
-                {/* Bg Color */}
                 <div className="flex gap-2 shrink-0">
                   {COLOR_PALETTE.map(c => <button key={`bg-${c.id}`} onMouseDown={(e) => execCmd(e, 'hiliteColor', c.bg)} className="w-8 h-8 rounded-full border border-gray-200 hover:scale-110 transition-transform shadow-sm relative" style={{ backgroundColor: c.bg === 'transparent' ? '#fff' : c.bg }} title={c.label}>
                     {c.bg === 'transparent' && <div className="absolute inset-0 flex items-center justify-center"><div className="w-full h-[1px] bg-red-400 rotate-45 transform scale-75"></div></div>}
@@ -794,7 +791,7 @@ const ChecklistEditor = ({ note, onUpdate, onBack, onDelete }) => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 pb-24 w-full">
+      <div className="flex-1 overflow-y-auto p-4 pb-24 w-full hide-scrollbar">
         {items.length === 0 && !isEditing && (
            <div className="text-center text-gray-400 mt-20">沒有檢查項目<br/>點擊右下角設定新增</div>
         )}
