@@ -41,7 +41,7 @@ import {
 /**
  * 版本編號與全域設定
  */
-const APP_VERSION = "v2.6";
+const APP_VERSION = "v2.8";
 
 // 定義色系
 const COLOR_PALETTE = [
@@ -58,7 +58,9 @@ const FONTS_CSS = `
   html, body, #root {
     height: 100%;
     width: 100%;
+    max-width: 100vw;
     overflow: hidden; /* 關鍵：隱藏所有溢出 */
+    overflow-x: hidden; /* 雙重保險：隱藏水平溢出 */
     overscroll-behavior: none;
     position: fixed;
   }
@@ -81,6 +83,8 @@ const FONTS_CSS = `
     line-height: 1.7;
     font-size: 1.15rem;
     overflow-x: hidden; /* 防止內容撐開水平卷軸 */
+    word-wrap: break-word; /* 自動換行 */
+    overflow-wrap: break-word;
   }
   
   /* 定義 execCommand 產生的 font size 對應大小 */
@@ -148,6 +152,8 @@ const FONTS_CSS = `
     gap: 0.75rem;
     padding: 0.5rem 0;
     border-bottom: 1px solid #f3f4f6;
+    width: 100%;
+    overflow-wrap: break-word; /* 確保長文字換行 */
   }
   .checklist-item:last-child { border-bottom: none; }
 `;
@@ -385,7 +391,6 @@ export default function App() {
                 onClick={() => { setActiveCategoryId(cat.id); setView('notes'); }}
                 className={`relative bg-white p-4 rounded-2xl shadow-sm border ${isForm ? 'border-l-4 border-l-orange-400 border-gray-100' : 'border-orange-100'} flex justify-between items-center active:scale-[0.98] transition-all cursor-pointer hover:shadow-md min-h-[4rem]`}
               >
-                {/* 分類名稱與數量顯示優化：數量移至右側單行 */}
                 <div className="flex-1">
                   <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
                     {cat.name}
@@ -587,7 +592,8 @@ export default function App() {
               </button>
             </div>
             {newCategoryType !== 'divider' ? (
-              <input autoFocus type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder={newCategoryType === 'form' ? "表單名稱..." : "分類名稱..."} className="w-full p-4 bg-gray-50 border-none rounded-xl mb-4 text-lg outline-none focus:ring-2 focus:ring-orange-200"/>
+              // 修正：加入 min-w-0 防止 input 在 flex 容器中被擠壓或溢出
+              <input autoFocus type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder={newCategoryType === 'form' ? "表單名稱..." : "分類名稱..."} className="w-full p-4 bg-gray-50 border-none rounded-xl mb-4 text-lg outline-none focus:ring-2 focus:ring-orange-200 min-w-0"/>
             ) : (
               <div className="w-full p-4 bg-gray-50 rounded-xl mb-4 text-center text-gray-400 text-sm">將建立一條視覺分隔線</div>
             )}
@@ -669,7 +675,7 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
       <header className="flex justify-between items-center p-2 border-b border-gray-100 shrink-0">
         <button onClick={onBack} className="p-3 text-gray-500 rounded-full hover:bg-gray-50"><ChevronLeft size={24} /></button>
         {isEditing ? (
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => onUpdate({title})} className="flex-1 mx-2 text-center font-bold text-xl border-b-2 border-orange-100 outline-none py-1 text-gray-700" placeholder="標題"/>
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => onUpdate({title})} className="flex-1 mx-2 text-center font-bold text-xl border-b-2 border-orange-100 outline-none py-1 text-gray-700 min-w-0" placeholder="標題"/>
         ) : (
           <h2 className="flex-1 mx-4 text-center font-bold text-xl truncate text-gray-800">{title}</h2>
         )}
@@ -699,10 +705,11 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
         )}
       </div>
 
-      <div className="p-2 border-t border-gray-100 bg-white/95 backdrop-blur safe-area-bottom pb-6">
+      <div className="p-2 border-t border-gray-100 bg-white/95 backdrop-blur safe-area-bottom pb-10">
         {isEditing ? (
           <div className="flex items-center gap-2 animate-in slide-in-from-bottom duration-200">
              <div className="flex-1 overflow-x-auto hide-scrollbar flex items-center gap-3 pr-2">
+                {/* Font Size & Indent */}
                 <div className="flex bg-gray-50 rounded-lg p-1 border border-gray-100 shrink-0">
                   <button onMouseDown={cycleFontSize} className="p-2 hover:bg-white rounded text-gray-600 w-10"><Type size={18}/></button>
                   <div className="w-[1px] bg-gray-200 mx-1"></div>
@@ -710,11 +717,17 @@ const RichTextEditor = ({ note, onUpdate, onBack, onDelete }) => {
                   <div className="w-[1px] bg-gray-200 mx-1"></div>
                   <button onMouseDown={(e) => execCmd(e, 'indent')} className="p-2 hover:bg-white rounded text-gray-600"><Indent size={18}/></button>
                 </div>
+                
                 <div className="w-[1px] h-8 bg-gray-200 shrink-0"></div>
+                
+                {/* Text Color */}
                 <div className="flex gap-2 shrink-0">
                   {COLOR_PALETTE.map(c => <button key={`txt-${c.id}`} onMouseDown={(e) => execCmd(e, 'foreColor', c.text)} className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center bg-white shadow-sm text-sm font-bold" style={{ color: c.text }}>A</button>)}
                 </div>
+                
                 <div className="w-[1px] h-8 bg-gray-200 shrink-0"></div>
+                
+                {/* Bg Color */}
                 <div className="flex gap-2 shrink-0">
                   {COLOR_PALETTE.map(c => <button key={`bg-${c.id}`} onMouseDown={(e) => execCmd(e, 'hiliteColor', c.bg)} className="w-8 h-8 rounded-full border border-gray-200 hover:scale-110 transition-transform shadow-sm relative" style={{ backgroundColor: c.bg === 'transparent' ? '#fff' : c.bg }} title={c.label}>
                     {c.bg === 'transparent' && <div className="absolute inset-0 flex items-center justify-center"><div className="w-full h-[1px] bg-red-400 rotate-45 transform scale-75"></div></div>}
@@ -784,7 +797,7 @@ const ChecklistEditor = ({ note, onUpdate, onBack, onDelete }) => {
     <div className="flex flex-col h-full bg-white animate-in slide-in-from-right duration-300 w-full overflow-hidden">
       <header className="flex justify-between items-center p-2 border-b border-gray-100 bg-orange-50/30 shrink-0">
         <button onClick={onBack} className="p-3 text-gray-500 rounded-full hover:bg-gray-50"><ChevronLeft size={24} /></button>
-        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={handleTitleBlur} className="flex-1 mx-2 text-center font-bold text-xl border-b-2 border-orange-100 outline-none py-1 text-gray-800 bg-transparent" placeholder="表單名稱"/>
+        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={handleTitleBlur} className="flex-1 mx-2 text-center font-bold text-xl border-b-2 border-orange-100 outline-none py-1 text-gray-800 bg-transparent min-w-0" placeholder="表單名稱"/>
         <div className="flex gap-1">
           <button onClick={handleTogglePin} className={`p-3 rounded-full transition-colors ${note.isPinned ? 'text-orange-500 bg-orange-50' : 'text-gray-300 hover:bg-gray-50'}`}><Bookmark size={20} fill={note.isPinned ? "currentColor" : "none"} /></button>
           <button onClick={onDelete} className="p-3 text-red-300 rounded-full hover:bg-red-50 hover:text-red-500"><Trash2 size={20} /></button>
@@ -806,7 +819,7 @@ const ChecklistEditor = ({ note, onUpdate, onBack, onDelete }) => {
                 {item.checked && <Check size={14} strokeWidth={4} />}
               </div>
               
-              <div className="flex-1 pt-0.5 text-lg text-gray-700 leading-snug" onClick={() => handleToggleCheck(index)}>
+              <div className="flex-1 pt-0.5 text-lg text-gray-700 leading-snug break-words whitespace-pre-wrap" onClick={() => handleToggleCheck(index)}>
                 {item.text}
               </div>
 
@@ -818,21 +831,21 @@ const ChecklistEditor = ({ note, onUpdate, onBack, onDelete }) => {
         </div>
 
         {isEditing && (
-          <form onSubmit={handleAddItem} className="mt-4 flex gap-2 animate-in fade-in">
+          <form onSubmit={handleAddItem} className="mt-4 flex gap-2 animate-in fade-in w-full">
             <input 
               autoFocus
               type="text" 
               value={newItemText}
               onChange={(e) => setNewItemText(e.target.value)}
               placeholder="輸入新項目..."
-              className="flex-1 p-3 bg-gray-50 rounded-xl outline-none border border-gray-200 focus:border-orange-400 text-base"
+              className="flex-1 min-w-0 p-3 bg-gray-50 rounded-xl outline-none border border-gray-200 focus:border-orange-400 text-base"
             />
-            <button type="submit" className="p-3 bg-orange-100 text-orange-600 rounded-xl font-bold"><Plus size={24}/></button>
+            <button type="submit" className="p-3 bg-orange-100 text-orange-600 rounded-xl font-bold shrink-0"><Plus size={24}/></button>
           </form>
         )}
       </div>
 
-      <div className="p-3 border-t border-gray-100 bg-white/95 backdrop-blur safe-area-bottom flex justify-between items-center pb-6">
+      <div className="p-3 border-t border-gray-100 bg-white/95 backdrop-blur safe-area-bottom flex justify-between items-center pb-10">
         {!isEditing ? (
            <button onClick={handleResetChecks} className="p-3 text-gray-500 hover:bg-gray-100 rounded-xl flex items-center gap-2 text-sm font-bold">
              <RotateCcw size={18} /> 重置
